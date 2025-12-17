@@ -1,0 +1,9 @@
+torch
+torchvision
+streamlit
+opencv-python-headless
+numpy
+pillow
+matplotlib
+ultralytics
+reportlab
