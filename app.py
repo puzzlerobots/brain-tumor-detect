@@ -238,6 +238,29 @@ def preprocess_unet(image):
     return img_tensor.unsqueeze(0).to(device)
 
 # --- App Logic ---
+# --- Validation ---
+def is_valid_mri(image, threshold=30):
+    """
+    Heuristic check: Brain MRIs are predominantly grayscale.
+    If the image has high color variance, it's likely a random photo.
+    """
+    # Convert to numpy
+    img_np = np.array(image.convert("RGB"))
+    
+    # Calculate variance between channels
+    # Ideally R, G, B should be very similar for grayscale
+    r = img_np[:, :, 0]
+    g = img_np[:, :, 1]
+    b = img_np[:, :, 2]
+    
+    diff_rg = np.mean(np.abs(r - g))
+    diff_gb = np.mean(np.abs(g - b))
+    diff_rb = np.mean(np.abs(r - b))
+    
+    avg_diff = (diff_rg + diff_gb + diff_rb) / 3
+    
+    return avg_diff < threshold
+
 def main():
     st.sidebar.title("NeuroScan")
     st.sidebar.markdown("Medical Diagnostic Assistant")
@@ -302,6 +325,19 @@ def main():
 
         if uploaded_file is not None:
             image_raw = Image.open(uploaded_file).convert("RGB")
+            
+            # --- Validation Check ---
+            if not is_valid_mri(image_raw):
+                st.error("⚠️ Invalid Image Detected")
+                st.markdown("""
+                **The uploaded image does not appear to be a standard brain MRI scan.** 
+                
+                NeuroScan requires **grayscale medical imaging** data. 
+                Color photographs, screenshots, or unrelated images may produce false positives and are rejected for safety.
+                """)
+                st.image(image_raw, caption="Rejected Image", width=300)
+                return # Stop processing
+
             
             # --- Image Enhancements ---
             with st.expander("Image Enhancements", expanded=True):
@@ -452,7 +488,7 @@ def main():
                                 doctor_name=doctor_name,
                                 diagnosis=pred_class.upper(),
                                 confidence=confidence,
-                                original_img=img_resized,
+                                original_img=img_disp,
                                 mask_img=mask_np
                             )
                             
